@@ -1,0 +1,25 @@
+
+# Generated using AI
+.git
+.gitignore
+
+.vs
+.vscode
+
+bin/
+obj/
+
+.env
+.env.*
+
+*.log
+
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+
+README.md
+docs/
+
+.DS_Store
+Thumbs.db
