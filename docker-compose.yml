@@ -1,0 +1,79 @@
+name: Project_Restaurant_API
+
+services:
+
+    # If it uses an image of our own, then, use the build section, if not, use the image section.
+    bd:
+        image: postgres:${TAG_PG}
+        container_name: PostgreSQL
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+            interval: 10s
+            timeout: 5s
+            retries: 2
+    
+    auth:
+        image: quay.io/keycloak/keycloak:${TAG_KC}
+        container_name: Keycloak
+        # start-dev: for development/testing only—not for production environments!
+        # start: for production environmets
+        command: start-dev
+        # "auth" service isnt going to start, till this condition
+        depends_on:
+            bd:
+                condition: service_healthy
+        # A lot of env var's for this case: https://www.keycloak.org/server/containers
+        # https://github.com/SMF-GmbH/keycloak-quick-start
+        environment:
+            # admin
+            KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+            KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+            # to enable health and metrics
+            KC_HEALTH_ENABLED: ${KC_HEALTH_ENABLED}
+            KC_METRICS_ENABLED: ${KC_METRICS_ENABLED}
+            # to use the db
+            KC_DB: ${KC_DB} # to indicate it, which database motor is going to use.
+            #KC_DB_URL_HOST: PostgreSQL # container name of the DB
+            KC_DB_URL: ${KC_DB_URL}
+            KC_DB_USERNAME: ${POSTGRES_USER}
+            KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+            #Local cache, since only one instance is used.
+            KC_CACHE: ${KC_CACHE}
+            #For local development only! Enable HTTP and disable hostname validation.
+            KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+            KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
+        ports:
+            # HTTP-Port. Produktiv nur TLS nutzen!
+            - "8080:8080"
+
+        healthcheck:
+            test:
+                - "CMD-SHELL"
+                - >
+                    exec 3<>/dev/tcp/localhost/9000 &&
+                    echo -e "GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+                    cat <&3 | grep -q "\"status\": \"UP\""
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+    
+    api:
+        build:
+            context: .
+        container_name: RestaurantAPI
+        # "api" service isnt going to start, till this conditions
+        depends_on:
+            auth:
+                condition: service_healthy
+            bd:
+                condition: service_healthy
+                
+volumes:
+    postgres_data:
