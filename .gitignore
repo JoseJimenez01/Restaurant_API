@@ -58,3 +58,10 @@ nunit-*.xml
 
 # Visual Stodio Code Folder
 /Project_Restaurant_API/.vs
+
+# Visual Studio user-specific files (local settings, no versionar)
+*.csproj.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
