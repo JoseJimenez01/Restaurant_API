@@ -1,0 +1,214 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16
+          command:
+            - sh
+            - -c
+            - |
+              until PGPASSWORD="$POSTGRES_PASSWORD" psql \
+                -h postgres -p 5432 -U "$POSTGRES_USER" -d "$KEYCLOAK_DB_NAME" \
+                -c 'SELECT 1' >/dev/null 2>&1; do
+                echo "Esperando la base de Keycloak..."
+                sleep 2
+              done
+          env:
+            - name: KEYCLOAK_DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_PASSWORD
+
+        - name: render-realm
+          image: python:3.13-alpine
+          command:
+            - python
+            - -c
+            - |
+              import json, os
+              src = '/template/realm-template.json'
+              dst = '/generated/restaurant-realm.json'
+              with open(src, encoding='utf-8') as f:
+                  realm = json.load(f)
+              realm['realm'] = os.environ['KEYCLOAK_REALM']
+              role = os.environ['KEYCLOAK_REQUIRED_ROLE']
+              realm['roles']['realm'][0]['name'] = role
+              client_id = os.environ['KEYCLOAK_CLIENT_ID']
+              realm['clients'][0]['clientId'] = client_id
+              realm['clients'][0]['protocolMappers'][0]['config']['included.client.audience'] = client_id
+              writer = realm['users'][0]
+              writer['username'] = os.environ['K6_WRITER_USERNAME']
+              writer['credentials'][0]['value'] = os.environ['K6_WRITER_PASSWORD']
+              writer['realmRoles'] = [role]
+              reader = realm['users'][1]
+              reader['username'] = os.environ['K6_READER_USERNAME']
+              reader['credentials'][0]['value'] = os.environ['K6_READER_PASSWORD']
+              with open(dst, 'w', encoding='utf-8') as f:
+                  json.dump(realm, f, ensure_ascii=False, indent=2)
+          env:
+            - name: KEYCLOAK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_REALM
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_CLIENT_ID
+            - name: KEYCLOAK_REQUIRED_ROLE
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_REQUIRED_ROLE
+            - name: K6_WRITER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: K6_WRITER_USERNAME
+            - name: K6_WRITER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: K6_WRITER_PASSWORD
+            - name: K6_READER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: K6_READER_USERNAME
+            - name: K6_READER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: K6_READER_PASSWORD
+          volumeMounts:
+            - name: realm-template
+              mountPath: /template
+              readOnly: true
+            - name: realm-generated
+              mountPath: /generated
+
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.7.3
+          args: ["start-dev", "--import-realm"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: KC_BOOTSTRAP_ADMIN_USERNAME
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: KC_BOOTSTRAP_ADMIN_PASSWORD
+            - name: KC_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_DB
+            - name: KC_DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_DB_URL
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_USER
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_PASSWORD
+            - name: KC_CACHE
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_CACHE
+            - name: KC_HTTP_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_HTTP_ENABLED
+            - name: KC_HOSTNAME_STRICT
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_HOSTNAME_STRICT
+            - name: KC_HEALTH_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_HEALTH_ENABLED
+            - name: KC_METRICS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_METRICS_ENABLED
+            - name: KC_HTTP_MANAGEMENT_SCHEME
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KC_HTTP_MANAGEMENT_SCHEME
+          volumeMounts:
+            - name: realm-generated
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+      volumes:
+        - name: realm-template
+          configMap:
+            name: keycloak-realm-template
+        - name: realm-generated
+          emptyDir: {}
