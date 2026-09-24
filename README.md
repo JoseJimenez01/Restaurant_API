@@ -427,15 +427,15 @@ docker build -t restaurant-api:local .   # equivalente a lo que hace k8s-up.sh
 
 ##### [Josimar Araya]()
 
--k6 – Pruebas de integración: Para facilitar la estructuración y revisión de los scripts de pruebas automatizadas sobre los endpoints ya definidos por el proyecto
+- k6 – Pruebas de integración: Para facilitar la estructuración y revisión de los scripts de pruebas automatizadas sobre los endpoints ya definidos por el proyecto
 
--k6 – Autenticación y persistencia: Apoyo en validación de escenarios con tokens de Keycloak, respuestas 401/403 y comprobaciones de persistencia desde las pruebas
+- k6 – Autenticación y persistencia: Apoyo en validación de escenarios con tokens de Keycloak, respuestas 401/403 y comprobaciones de persistencia desde las pruebas
 
--Kubernetes – Manifiestos: Parcialmente para generar y revisar general de los Deployments, Services, PVC, ConfigMap, Secret y probes necesarios para desplegar el sistema
+- Kubernetes – Manifiestos: Parcialmente para generar y revisar general de los Deployments, Services, PVC, ConfigMap, Secret y probes necesarios para desplegar el sistema
 
--Kustomize y kind: Se utilizó para estructurar base/ y overlays/, configurar el clúster local con kind y revisar los comandos de despliegue
+- Kustomize y kind: Se utilizó para estructurar base/ y overlays/, configurar el clúster local con kind y revisar los comandos de despliegue
 
--Además se usó en general para revisar y validar algunos códigos y flujo de proceso además de arreglar errores, fallas generales y problemas de código
+- Además se usó en general para revisar y validar algunos códigos y flujo de proceso además de arreglar errores, fallas generales y problemas de código
 
 ##### [Franco Rojas]()
 
