@@ -15,7 +15,7 @@ ordenan el arranque.
 │   │  api (app)   │ ◄────────────────────────► │  bd (PostgreSQL 16) │  │
 │   │ :8080        │   bd:5432 (restaurantdb)   │ :5432  + volumen    │  │
 │   └──────┬───────┘                            └─────────────────────┘  │
-│          │ por nombre de servicio                                       │
+│          │ por nombre de servicio                                      │
 │          │ auth:8080 (OIDC: validación de JWT)                         │
 │          ▼                                                             │
 │   ┌─────────────────────┐                                              │
