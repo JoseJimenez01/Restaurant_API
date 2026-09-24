@@ -425,7 +425,31 @@ docker build -t restaurant-api:local .   # equivalente a lo que hace k8s-up.sh
 
 ## 14. Declaración de uso de IA
 
-# [José Jiménez](https://github.com/JoseJimenez01)
+##### [Josimar Araya]()
 
 -
+
+-
+
+- 
+
+##### [Franco Rojas]()
+
+-
+
+-
+
+-
+
+##### [José Jiménez](https://github.com/JoseJimenez01)
+
+- Refrescar términos, explicación del funcionamiento de algunas cosas(tecnologías, conexión entre componentes, etc).
+
+- Solución de errores.
+
+- Consultar la documentación rápidamente en busca de buenas prácticas de uso de cierta tecnología.
+
+- Si fuera el caso, para generar data de una BD, o generar los tests de prueba.
+
+
 
