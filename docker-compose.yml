@@ -1,0 +1,128 @@
+name: Project_Restaurant_API
+
+# ------------------------------------------------------------------------------------------
+# Orquestacion del sistema completo: aplicacion (nuestra imagen) + PostgreSQL + Keycloak.
+#
+# Reglas que cumple:
+#   - La aplicacion alcanza la base y el proveedor por NOMBRE DE SERVICIO en la red que
+#     crea Compose (bd, auth), nunca por IP fija ni por localhost.
+#   - Volumen "postgres_data" declarado para la persistencia real (sobrevive a down/up).
+#   - Los tres servicios declaran healthcheck; la aplicacion no arranca hasta que sus
+#     dependencias esten sanas (depends_on con condition: service_healthy).
+#   - Configuracion 100% por variables de entorno (ver .env.example); la imagen no
+#     contiene secretos.
+#   - El realm de Keycloak se importa al arrancar desde keycloak/realm-export.json,
+#     de modo que el sistema queda operativo con un solo comando, sin clicks en la
+#     consola de administracion.
+# ------------------------------------------------------------------------------------------
+services:
+
+    # ---------- PostgreSQL (imagen oficial) ----------
+    bd:
+        image: postgres:${TAG_PG}
+        container_name: PostgreSQL
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+        volumes:
+            # Volumen declarado para los datos: sobrevive a "docker compose down".
+            - postgres_data:/var/lib/postgresql/data
+            # Script de inicializacion: crea la base propia de Keycloak (solo la
+            # primera vez que se inicializa el volumen).
+            - ./db/init:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    # ---------- Keycloak (proveedor de identidad externo, imagen oficial) ----------
+    auth:
+        image: quay.io/keycloak/keycloak:${TAG_KC}
+        container_name: Keycloak
+        # start-dev: modo desarrollo (HTTP, sin validacion de hostname) para esta tarea.
+        # --import-realm: importa el realm versionado al arrancar (reproducible).
+        command: start-dev --import-realm
+        # No arranca hasta que PostgreSQL esté sano: Keycloak usa la misma base.
+        depends_on:
+            bd:
+                condition: service_healthy
+        environment:
+            # Credenciales del administrador del realm "master" (solo bootstrap).
+            KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+            KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+            # Habilita /health/ready y métricas (endpoint 9000).
+            KC_HEALTH_ENABLED: ${KC_HEALTH_ENABLED}
+            KC_METRICS_ENABLED: ${KC_METRICS_ENABLED}
+            # Base de datos de Keycloak: la misma PostgreSQL, pero en su propia base
+            # (keycloakdb), creada por db/init. No comparte esquema con la aplicacion.
+            KC_DB: ${KC_DB}
+            KC_DB_URL: ${KC_DB_URL}
+            KC_DB_USERNAME: ${POSTGRES_USER}
+            KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+            # Caché local (una sola instancia) y HTTP sin validación de hostname (dev).
+            KC_CACHE: ${KC_CACHE}
+            KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+            KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
+        volumes:
+            # Realm versionado: permite levantar el sistema con un solo comando.
+            - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+        ports:
+            # Expuesto al host en KC_PORT (por defecto 8081); interno 8080.
+            - "${KC_PORT}:8080"
+        healthcheck:
+            test:
+                - "CMD-SHELL"
+                - >
+                    exec 3<>/dev/tcp/localhost/9000 &&
+                    echo -e "GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+                    cat <&3 | grep -q '"status": "UP"'
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 60s
+
+    # ---------- Aplicacion (imagen propia, construida con el Dockerfile) ----------
+    api:
+        build:
+            context: .
+        container_name: RestaurantAPI
+        # No arranca hasta que sus dependencias esten sanas (healthchecks anteriores).
+        depends_on:
+            auth:
+                condition: service_healthy
+            bd:
+                condition: service_healthy
+        environment:
+            # Conexion a PostgreSQL POR NOMBRE DE SERVICIO (red de Compose).
+            POSTGRES_HOST: bd
+            POSTGRES_PORT: 5432
+            POSTGRES_DB: ${POSTGRES_DB}
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            # Keycloak POR NOMBRE DE SERVICIO para la validacion OIDC (issuer interno).
+            KEYCLOAK_AUTHORITY: http://auth:8080/realms/${KEYCLOAK_REALM}
+            # El issuer que ponen los tokens emitidos via localhost:${KC_PORT} (dev).
+            KEYCLOAK_VALID_ISSUER: ${KEYCLOAK_VALID_ISSUER}
+            KEYCLOAK_REQUIRED_ROLE: ${KEYCLOAK_REQUIRED_ROLE}
+        ports:
+            # Expuesto al host en API_PORT (por defecto 8080); interno 8080.
+            - "${API_PORT}:8080"
+        healthcheck:
+            # Liveness: GET /health sin tocar la base. Se llama a bash explicitamente
+            # porque la imagen aspnet trae dash como sh (sin /dev/tcp).
+            test:
+                - "CMD-SHELL"
+                - >
+                    bash -c 'exec 3<>/dev/tcp/localhost/8080 &&
+                    echo -e "GET /health HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+                    cat <&3 | grep -q -F "status\":\"healthy"'
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 20s
+
+volumes:
+    postgres_data:
