@@ -422,3 +422,10 @@ docker build -t restaurant-api:local .   # equivalente a lo que hace k8s-up.sh
 │   └── Auth/KeycloakClaimsTransformation.cs   # roles de Keycloak → ClaimTypes.Role
 └── Project_Restaurant_API.Tests/              # 20 unitarias + 8 de integración
 ```
+
+## 14. Declaración de uso de IA
+
+# [José Jiménez](https://github.com/JoseJimenez01)
+
+-
+

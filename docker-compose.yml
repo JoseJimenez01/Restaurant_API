@@ -14,6 +14,9 @@ name: Project_Restaurant_API
 #   - El realm de Keycloak se importa al arrancar desde keycloak/realm-export.json,
 #     de modo que el sistema queda operativo con un solo comando, sin clicks en la
 #     consola de administracion.
+#   - Se optó por usar la doble validación, en el caso del depends_on para asegurar que los
+#     contenedores que serán usados por la api arranquen primero y estén listos para su uso;
+#     en el caso de los healtchecks para una validación rápida extra, siempre está bien. 
 # ------------------------------------------------------------------------------------------
 services:
 
