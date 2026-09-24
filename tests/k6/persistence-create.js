@@ -49,8 +49,9 @@ export default function () {
 
     const accessToken = token();
     const body = JSON.stringify({
-        nombre: MARKER,
+        nombreCliente: MARKER,
         fecha: DATE,
+        hora: '12:00:00',
         cantidadPersonas: 3,
     });
 

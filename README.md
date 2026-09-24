@@ -218,6 +218,17 @@ Cobertura de las pruebas de integración (`Project_Restaurant_API.Tests/Integrat
 | `Escribir_TokenSinRol_Responde403` | rol requerido |
 | `Salud_Y_Disponibilidad_QuedanAbiertas_SinToken` | health/ready abiertas |
 
+**Pruebas k6 end-to-end (Compose):** la pila incluye además un perfil opcional de pruebas
+con **k6** que recorre el mismo contrato (401/403/400/201/200/filtro/404, PUT y DELETE)
+y la persistencia, con comandos documentados:
+
+```bash
+./scripts/run-compose-integration.sh     # contrato completo con k6 en la red de Compose
+./scripts/run-compose-persistence.sh     # escribe, reinicia, verifica y limpia (k6)
+```
+
+Requieren las variables `K6_*` en `.env` (ver sección 7).
+
 ---
 
 ## 5. Verificar la persistencia tras un reinicio
@@ -345,7 +356,46 @@ esquema de Keycloak (decenas de tablas) haga que EF Core asuma que el de la app 
 
 ---
 
-## 12. Estructura del repositorio
+## 12. Kubernetes y Kustomize (grupos de tres)
+
+El mismo sistema se despliega sobre un clúster local **kind** con manifiestos en
+`k8s/` (carpeta `base/` + overlay `local/`), con Kustomize. Cada concepto de Compose tiene
+su correspondiente en Kubernetes:
+
+| Compose | Kubernetes |
+|---|---|
+| servicio `api` (imagen propia) | `Deployment restaurant-api` + `Service` (ClusterIP) |
+| servicio `bd` (PostgreSQL) | `Deployment postgres` + `Service` + `PVC postgres-data` |
+| servicio `auth` (Keycloak) | `Deployment keycloak` + `Service` (ClusterIP) |
+| volumen `postgres_data` | `PersistentVolumeClaim` `postgres-data` |
+| healthchecks + `depends_on` | `startupProbe` / `livenessProbe` (/health) / `readinessProbe` (/ready) + `initContainers` que esperan a las dependencias |
+| variables de entorno (`.env`) | `ConfigMap restaurant-config` + `Secret restaurant-secrets` (secretGenerator del overlay) |
+| realm importado (`--import-realm`) | `initContainer` que renderiza el realm desde una plantilla (`k8s/base/keycloak/realm-template.json`) e importa con `--import-realm` |
+
+**Requisitos:** Docker, `kind` y `kubectl` en el PATH.
+
+**Comandos reproducibles** (se ejecutan desde la raíz del repositorio):
+
+```bash
+./scripts/k8s-up.sh                    # crea el clúster kind, carga la imagen, aplica el
+                                       # overlay y verifica que los Deployments queden listos
+# API desde el host: http://localhost:8081 (NodePort 30081 -> :8081)
+
+./scripts/k8s-run-integration.sh       # ejecuta el contrato completo con k6 (Job en el clúster)
+./scripts/k8s-run-persistence.sh       # escribe con k6, borra el Pod postgres, verifica que el
+                                       # dato sobrevive (PVC) y limpia
+./scripts/k8s-down.sh                  # elimina el clúster kind
+```
+
+La primera vez que se aplica el overlay, `k8s-up.sh` crea `k8s/overlays/local/secrets.env`
+desde la plantilla `secrets.env.example` (valores de desarrollo válidos; este archivo no se
+versiona). La imagen se construye con el mismo `Dockerfile` del repo y se carga en kind:
+
+```bash
+docker build -t restaurant-api:local .   # equivalente a lo que hace k8s-up.sh
+```
+
+## 13. Estructura del repositorio
 
 ```
 .
@@ -356,6 +406,12 @@ esquema de Keycloak (decenas de tablas) haga que EF Core asuma que el de la app 
 ├── .gitignore                 # .env, bin/obj, etc. fuera del repositorio
 ├── db/init/01-keycloak-db.sql # base exclusiva de Keycloak (1er arranque del volumen)
 ├── keycloak/realm-export.json # realm de Keycloak importado al arrancar
+├── k8s/                       # manifiestos Kubernetes (módulo de grupo de tres)
+│   ├── base/                  # base de Kustomize (Deployments, Services, PVC, ConfigMap…)
+│   └── overlays/local/        # overlay local: kind-config, NodePort, Secret via Kustomize
+├── scripts/                   # k8s-up/down, k8s-run-* y run-compose-* (integración k6)
+├── tests/k6/                  # pruebas k6: contrato completo y persistencia
+├── INTEGRATION_CONTRACT.md    # contrato de integración coordinado entre partes
 ├── README.md
 ├── Project_Restaurant_API/                    # servicio ASP.NET Core 8
 │   ├── Program.cs                             # config, auth JWT, /health, /ready, esquema

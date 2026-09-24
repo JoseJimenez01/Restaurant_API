@@ -27,6 +27,10 @@ README.md
 docs/
 db/
 keycloak/
+k8s/
+scripts/
+tests/
+INTEGRATION_CONTRACT.md
 
 # Resto
 *.log

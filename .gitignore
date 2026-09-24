@@ -65,3 +65,6 @@ nunit-*.xml
 *.user
 *.userosscache
 *.sln.docstates
+
+# Secretos del overlay local de Kubernetes (generados por Kustomize/k8s-up.sh)
+k8s/overlays/local/secrets.env

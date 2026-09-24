@@ -133,20 +133,23 @@ export default function (data) {
     });
 
     const reservation = {
-        nombre: TEST_MARKER,
+        nombreCliente: TEST_MARKER,
         fecha: TEST_DATE,
+        hora: '19:30:00',
         cantidadPersonas: 2,
     };
 
     const updatedReservation = {
-        nombre: `${TEST_MARKER}-actualizada`,
+        nombreCliente: `${TEST_MARKER}-actualizada`,
         fecha: TEST_DATE,
+        hora: '20:00:00',
         cantidadPersonas: 4,
     };
 
     const invalidReservation = {
-        nombre: '',
+        nombreCliente: '',
         fecha: '',
+        hora: '',
         cantidadPersonas: 0,
     };
 

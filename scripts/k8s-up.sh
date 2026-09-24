@@ -5,15 +5,11 @@ cluster="restaurant-api"
 secret_file="k8s/overlays/local/secrets.env"
 secret_example="k8s/overlays/local/secrets.env.example"
 
+# Si no existe secrets.env se crea desde la plantilla. La plantilla trae valores de
+# desarrollo validos; se recomienda cambiarlos para ambientes compartidos.
 if [ ! -f "$secret_file" ]; then
   cp "$secret_example" "$secret_file"
-  echo "Se creo $secret_file desde el ejemplo. Cambie los valores CAMBIAR_* antes de continuar."
-  exit 1
-fi
-
-if grep -q 'CAMBIAR_' "$secret_file"; then
-  echo "Edite $secret_file: todavia contiene valores CAMBIAR_*."
-  exit 1
+  echo "Se creo $secret_file desde el ejemplo."
 fi
 
 docker build -t restaurant-api:local .

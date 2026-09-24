@@ -40,6 +40,10 @@
   "users": [
     {
       "username": "__WRITER_USERNAME__",
+      "firstName": "Escritor",
+      "lastName": "De Prueba",
+      "email": "escritor@example.com",
+      "emailVerified": true,
       "enabled": true,
       "credentials": [
         {
@@ -52,6 +56,10 @@
     },
     {
       "username": "__READER_USERNAME__",
+      "firstName": "Lector",
+      "lastName": "De Prueba",
+      "email": "lector@example.com",
+      "emailVerified": true,
       "enabled": true,
       "credentials": [
         {

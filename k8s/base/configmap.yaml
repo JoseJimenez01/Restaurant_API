@@ -13,7 +13,7 @@ data:
   KEYCLOAK_URL: http://keycloak:8080
   KEYCLOAK_REALM: restaurant
   KEYCLOAK_CLIENT_ID: restaurant-api
-  KEYCLOAK_REQUIRED_ROLE: restaurant-writer
+  KEYCLOAK_REQUIRED_ROLE: api-writer
   RESOURCE_PATH: /reservas
 
   KC_DB: postgres

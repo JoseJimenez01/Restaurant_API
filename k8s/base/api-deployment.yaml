@@ -19,34 +19,34 @@ spec:
             - sh
             - -c
             - |
-              until PGPASSWORD="$DB_PASSWORD" psql \
-                -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+              until PGPASSWORD="$POSTGRES_PASSWORD" psql \
+                -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
                 -c 'SELECT 1' >/dev/null 2>&1; do
                 echo "Esperando PostgreSQL..."
                 sleep 2
               done
           env:
-            - name: DB_HOST
+            - name: POSTGRES_HOST
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: POSTGRES_HOST
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: POSTGRES_PORT
-            - name: DB_NAME
+            - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: APP_DB_NAME
-            - name: DB_USER
+            - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: restaurant-secrets
                   key: POSTGRES_USER
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: restaurant-secrets
@@ -84,34 +84,36 @@ spec:
                   name: restaurant-config
                   key: ASPNETCORE_URLS
 
-            - name: DB_HOST
+            # Contrato de configuracion del servicio (Program.cs): conexion a
+            # PostgreSQL por variables POSTGRES_* (por nombre de servicio "postgres").
+            - name: POSTGRES_HOST
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: POSTGRES_HOST
-            - name: DB_PORT
+            - name: POSTGRES_PORT
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: POSTGRES_PORT
-            - name: DB_NAME
+            - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: APP_DB_NAME
-            - name: DB_USER
+            - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: restaurant-secrets
                   key: POSTGRES_USER
-            - name: DB_PASSWORD
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: restaurant-secrets
                   key: POSTGRES_PASSWORD
-            - name: ConnectionStrings__DefaultConnection
-              value: "Host=$(DB_HOST);Port=$(DB_PORT);Database=$(DB_NAME);Username=$(DB_USER);Password=$(DB_PASSWORD)"
 
+            # Keycloak: la app valida JWT contra la authority (discovery OIDC) y
+            # exige el rol definido en KEYCLOAK_REQUIRED_ROLE.
             - name: KEYCLOAK_URL
               valueFrom:
                 configMapKeyRef:
@@ -122,24 +124,13 @@ spec:
                 configMapKeyRef:
                   name: restaurant-config
                   key: KEYCLOAK_REALM
-            - name: KEYCLOAK_CLIENT_ID
-              valueFrom:
-                configMapKeyRef:
-                  name: restaurant-config
-                  key: KEYCLOAK_CLIENT_ID
+            - name: KEYCLOAK_AUTHORITY
+              value: "$(KEYCLOAK_URL)/realms/$(KEYCLOAK_REALM)"
             - name: KEYCLOAK_REQUIRED_ROLE
               valueFrom:
                 configMapKeyRef:
                   name: restaurant-config
                   key: KEYCLOAK_REQUIRED_ROLE
-            - name: Keycloak__Authority
-              value: "$(KEYCLOAK_URL)/realms/$(KEYCLOAK_REALM)"
-            - name: Keycloak__Audience
-              value: "$(KEYCLOAK_CLIENT_ID)"
-            - name: Keycloak__RequiredRole
-              value: "$(KEYCLOAK_REQUIRED_ROLE)"
-            - name: Keycloak__RequireHttpsMetadata
-              value: "false"
 
           startupProbe:
             httpGet:

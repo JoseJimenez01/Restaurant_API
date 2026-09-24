@@ -63,7 +63,7 @@ export default function () {
     }
 
     const item = Array.isArray(items)
-        ? items.find((x) => x && x.nombre === MARKER)
+        ? items.find((x) => x && x.nombreCliente === MARKER)
         : null;
 
     const ok = check(response, {
