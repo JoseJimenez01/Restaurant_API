@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import { check, fail } from 'k6';
+import { check, fail, sleep } from 'k6';
 
 const API_URL = __ENV.API_URL || 'http://api:8080';
 const KEYCLOAK_URL = __ENV.KEYCLOAK_URL || 'http://auth:8080';
@@ -30,11 +30,25 @@ function token() {
     };
     if (CLIENT_SECRET !== '') data.client_secret = CLIENT_SECRET;
 
-    const r = http.post(
-        `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`,
-        data,
-        { responseCallback: http.expectedStatuses(200), tags: { name: 'keycloak-token-writer' } }
-    );
+    // Keycloak comparte el postgres que se acaba de reiniciar: sus primeros
+    // intentos pueden devolver 5xx mientras rehabilita el pool. Reintento acotado
+    // con backoff (3, 6, 9, ... 24s) para no tumbar la verificacion de persistencia.
+    const maxIntentos = 8;
+    let r = null;
+    for (let intento = 1; intento <= maxIntentos; intento++) {
+        r = http.post(
+            `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`,
+            data,
+            { responseCallback: http.expectedStatuses(200), tags: { name: 'keycloak-token-writer' } }
+        );
+
+        if (r.status === 200) break;
+
+        if (intento < maxIntentos) {
+            console.log(`Token pendiente (${r.status}); reintento ${intento}/${maxIntentos - 1}...`);
+            sleep(3 * intento);
+        }
+    }
 
     if (!check(r, { 'Keycloak entrega token writer': (x) => x.status === 200 })) {
         fail(`No se pudo obtener token: ${r.status} ${r.body}`);
