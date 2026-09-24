@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restaurant-api
+  template:
+    metadata:
+      labels:
+        app: restaurant-api
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16
+          command:
+            - sh
+            - -c
+            - |
+              until PGPASSWORD="$DB_PASSWORD" psql \
+                -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+                -c 'SELECT 1' >/dev/null 2>&1; do
+                echo "Esperando PostgreSQL..."
+                sleep 2
+              done
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: POSTGRES_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: POSTGRES_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: APP_DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_PASSWORD
+
+        - name: wait-for-keycloak
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until wget -q -O /dev/null \
+                "http://keycloak:8080/realms/$KEYCLOAK_REALM/.well-known/openid-configuration"; do
+                echo "Esperando Keycloak y el realm..."
+                sleep 2
+              done
+          env:
+            - name: KEYCLOAK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_REALM
+
+      containers:
+        - name: api
+          image: restaurant-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_URLS
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: ASPNETCORE_URLS
+
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: POSTGRES_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: POSTGRES_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: APP_DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__DefaultConnection
+              value: "Host=$(DB_HOST);Port=$(DB_PORT);Database=$(DB_NAME);Username=$(DB_USER);Password=$(DB_PASSWORD)"
+
+            - name: KEYCLOAK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_URL
+            - name: KEYCLOAK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_REALM
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_CLIENT_ID
+            - name: KEYCLOAK_REQUIRED_ROLE
+              valueFrom:
+                configMapKeyRef:
+                  name: restaurant-config
+                  key: KEYCLOAK_REQUIRED_ROLE
+            - name: Keycloak__Authority
+              value: "$(KEYCLOAK_URL)/realms/$(KEYCLOAK_REALM)"
+            - name: Keycloak__Audience
+              value: "$(KEYCLOAK_CLIENT_ID)"
+            - name: Keycloak__RequiredRole
+              value: "$(KEYCLOAK_REQUIRED_ROLE)"
+            - name: Keycloak__RequireHttpsMetadata
+              value: "false"
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 45
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6

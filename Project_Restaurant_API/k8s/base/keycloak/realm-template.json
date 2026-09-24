@@ -1,0 +1,66 @@
+{
+  "realm": "__REALM__",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "__WRITER_ROLE__",
+        "description": "Permite crear, actualizar y eliminar recursos del servicio"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "__CLIENT_ID__",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "defaultClientScopes": ["profile", "email", "roles", "web-origins"],
+      "protocolMappers": [
+        {
+          "name": "restaurant-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "__CLIENT_ID__",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "__WRITER_USERNAME__",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__WRITER_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["__WRITER_ROLE__"]
+    },
+    {
+      "username": "__READER_USERNAME__",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__READER_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    }
+  ]
+}
